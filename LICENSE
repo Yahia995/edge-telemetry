@@ -1,0 +1,43 @@
+Business Source License 1.1
+
+License text copyright (c) 2026 Yahia Achouri
+
+Parameters
+-----------
+
+Licensor:
+Yahia Achouri
+
+Licensed Work:
+The software and source code in this repository, including but not limited to the Agent, Ktor Backend, and AI modules.
+
+Additional Use Grant:
+Use of the Licensed Work is permitted solely for non-production academic evaluation and grading purposes in the context of the course or project titled "Projet SI".
+Any other use, including but not limited to commercial use, production deployment, or use in a revenue-generating environment, is strictly prohibited without a separate commercial license granted by the Licensor.
+
+Change Date:
+2030-01-01
+
+Change License:
+Apache License, Version 2.0
+
+
+Terms
+-----
+
+The Licensor hereby grants you the right to copy, modify, create derivative works, redistribute, and run the Licensed Work solely in accordance with the Additional Use Grant.
+
+Effective on the Change Date, or the fourth anniversary of the first public availability of a specific version of the Licensed Work under this License, whichever comes first, the Licensor hereby grants you the rights under the terms of the Change License. At that time, the terms of this License shall terminate.
+
+Conditions
+----------
+
+1. All copies of the Licensed Work or derivative works must include a copy of this License.
+
+2. The Licensed Work and any derivative works are provided on an "AS IS" basis, without warranties or conditions of any kind, either express or implied, including without limitation any warranties of merchantability, fitness for a particular purpose, or non-infringement.
+
+---
+
+This license is derived from the Business Source License, Version 1.1.
+You may obtain a copy of the original license at:
+https://mariadb.com/bsl11/
