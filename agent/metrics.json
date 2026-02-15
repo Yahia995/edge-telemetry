@@ -1,0 +1,301 @@
+{
+  "device_id": "dev1",
+  "timestamp": 1769030254083,
+  "status": 1,
+  "Payload": {
+    "Cpu": {
+      "load_avg_1m": 0.27,
+      "load_avg_5m": 0.46,
+      "load_avg_15m": 0.51
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030254083,
+  "status": 1,
+  "Payload": {
+    "Memory": {
+      "total_kb": 24249180,
+      "available_kb": 19315724,
+      "used_kb": 4933456,
+      "usage_percent": 20.344837,
+      "swap_total_kb": 8388604,
+      "swap_free_kb": 8388604
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030254083,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "eno1"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030254083,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "wlp4s0",
+      "tx_dropped": 414
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030254083,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "lo"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030259084,
+  "status": 1,
+  "Payload": {
+    "Cpu": {
+      "usage_percent": 1.6292751,
+      "load_avg_1m": 0.25,
+      "load_avg_5m": 0.45,
+      "load_avg_15m": 0.5
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030259084,
+  "status": 1,
+  "Payload": {
+    "Memory": {
+      "total_kb": 24249180,
+      "available_kb": 19363612,
+      "used_kb": 4885568,
+      "usage_percent": 20.147354,
+      "swap_total_kb": 8388604,
+      "swap_free_kb": 8388604
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030259084,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "lo"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030259084,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "eno1"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030259084,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "wlp4s0",
+      "rx_bytes_per_sec": 1741,
+      "tx_bytes_per_sec": 1999,
+      "tx_dropped": 414
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030264084,
+  "status": 1,
+  "Payload": {
+    "Cpu": {
+      "usage_percent": 2.906537,
+      "load_avg_1m": 0.23,
+      "load_avg_5m": 0.44,
+      "load_avg_15m": 0.5
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030264084,
+  "status": 1,
+  "Payload": {
+    "Memory": {
+      "total_kb": 24249180,
+      "available_kb": 19371520,
+      "used_kb": 4877660,
+      "usage_percent": 20.114742,
+      "swap_total_kb": 8388604,
+      "swap_free_kb": 8388604
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030264084,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "lo"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030264084,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "eno1"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030264084,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "wlp4s0",
+      "rx_bytes_per_sec": 1583,
+      "tx_bytes_per_sec": 871,
+      "tx_dropped": 414
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030269083,
+  "status": 1,
+  "Payload": {
+    "Cpu": {
+      "usage_percent": 1.1770606,
+      "load_avg_1m": 0.21,
+      "load_avg_5m": 0.43,
+      "load_avg_15m": 0.5
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030269083,
+  "status": 1,
+  "Payload": {
+    "Memory": {
+      "total_kb": 24249180,
+      "available_kb": 19381748,
+      "used_kb": 4867432,
+      "usage_percent": 20.072563,
+      "swap_total_kb": 8388604,
+      "swap_free_kb": 8388604
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030269083,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "lo"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030269083,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "eno1"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030269083,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "wlp4s0",
+      "rx_bytes_per_sec": 25,
+      "tx_bytes_per_sec": 24,
+      "tx_dropped": 414
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030274085,
+  "status": 1,
+  "Payload": {
+    "Cpu": {
+      "usage_percent": 1.1268318,
+      "load_avg_1m": 0.19,
+      "load_avg_5m": 0.43,
+      "load_avg_15m": 0.5
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030274085,
+  "status": 1,
+  "Payload": {
+    "Memory": {
+      "total_kb": 24249180,
+      "available_kb": 19379900,
+      "used_kb": 4869280,
+      "usage_percent": 20.080185,
+      "swap_total_kb": 8388604,
+      "swap_free_kb": 8388604
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030274085,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "wlp4s0",
+      "tx_bytes_per_sec": 13,
+      "tx_dropped": 414
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030274085,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "lo"
+    }
+  }
+}
+{
+  "device_id": "dev1",
+  "timestamp": 1769030274085,
+  "status": 1,
+  "Payload": {
+    "Network": {
+      "interface_name": "eno1"
+    }
+  }
+}

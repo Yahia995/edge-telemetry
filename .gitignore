@@ -1,35 +1,15 @@
-# Binaries
-bin/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
 
-# Go build artifacts
-*.test
-*.out
-/vendor/
-
-# Go workspace
-go.work
-go.work.sum
-
-# IDE & Editor
+# IDE
+.idea/
+*.iml
 .vscode/
 
-# Generated protobuf code (regenerate with script)
-agent/proto/telemetry/*.pb.go
-
-# Test outputs
-*.json
+# Logs
 *.log
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# OS-specific
-Thumbs.db
-.Trash-*
+# OS
+.DS_Store
