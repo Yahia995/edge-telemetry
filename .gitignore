@@ -3,13 +3,40 @@
 build/
 !gradle-wrapper.jar
 
-# IDE
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build artifacts
+*.test
+*.out
+/vendor/
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE & Editor
+.vscode/
 .idea/
 *.iml
-.vscode/
 
-# Logs
+# Generated protobuf code (regenerate with script)
+agent/proto/telemetry/*.pb.go
+
+# Test outputs
+*.json
 *.log
 
-# OS
-.DS_Store
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS-specific
+Thumbs.db
+.Trash-*

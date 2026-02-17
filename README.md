@@ -2,14 +2,14 @@
 
 # 🌐 Intelligent Edge Telemetry & Control System
 
-[![Phase](https://img.shields.io/badge/Phase-1%20Complete-success?style=flat-square)](https://github.com/Yahia995/edge-telemetry)
+[![Phase](https://img.shields.io/badge/Phase-2%20In%20Progress-blue?style=flat-square)](https://github.com/Yahia995/edge-telemetry)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go)](https://go.dev)
-[![License](https://img.shields.io/badge/License-Academic-blue?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-BSL%201.1-blue?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](https://kernel.org)
 
 **A distributed information system for real-time edge device monitoring with AI-driven anomaly detection**
 
-[Features](#-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Roadmap](#-roadmap)
+[Overview](#-overview) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Project Status](#-project-status) • [Roadmap](#-roadmap)
 
 </div>
 
@@ -18,34 +18,42 @@
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
-- [Features](#-features)
 - [Architecture](#-architecture)
 - [Technology Stack](#-technology-stack)
 - [Project Status](#-project-status)
 - [Quick Start](#-quick-start)
 - [Project Structure](#-project-structure)
-- [Development Roadmap](#-roadmap)
+- [Roadmap](#-roadmap)
 - [Performance](#-performance)
-- [Contributing](#-contributing)
 - [License](#-license)
 
 ---
 
 ## 🎯 Overview
 
-This project is a **Projet SI** (Information System project) that demonstrates end-to-end distributed systems design, from low-level Linux kernel interfaces to high-level AI decision-making.
+This project is a **Projet SI** (Information System project) demonstrating end-to-end distributed systems design — from Linux kernel interfaces and `/proc` parsing, through a Ktor coordination backend, to an AI anomaly detection engine.
 
 ### Problem Statement
 
-Modern edge computing environments require:
-- **Real-time monitoring** of resource-constrained devices
-- **Low-overhead telemetry** that doesn't impact workload performance  
+Modern edge environments require:
+- **Real-time monitoring** of resource-constrained devices with negligible overhead
+- **Structured telemetry** that survives schema evolution
 - **Intelligent anomaly detection** without human intervention
-- **Automated control feedback** to prevent failures
+- **Automated control feedback** to prevent failures before they occur
 
-### Solution
+### Design Philosophy
 
-A layered architecture that separates concerns:
+The system is built in deliberate phases, with architecture and reasoning before implementation:
+
+- **Go first, C later** — the Linux agent is built in Go to establish correctness. C is introduced only in Phase 6 where kernel-level access (eBPF) genuinely requires it.
+- **Clean separation of concerns** — each component has one responsibility. Collectors only read, the backend only coordinates, the AI engine only reasons.
+- **Justified trade-offs** — every technology choice is documented against alternatives.
+
+---
+
+## 🏗️ Architecture
+
+### System Overview
 ```mermaid
 graph TB
     subgraph Edge_Layer
@@ -56,11 +64,15 @@ graph TB
 
     subgraph Control_Plane
         B["Backend (Ktor + Kotlin)"]
-        C["PostgreSQL (Time-series DB)"]
+        C["PostgreSQL"]
     end
 
     subgraph Intelligence_Layer
         D["AI Engine (FastAPI + Python)"]
+    end
+
+    subgraph Presentation_Layer
+        E["Dashboard (React + TypeScript)"]
     end
 
     A1 -->|gRPC stream| B
@@ -68,113 +80,54 @@ graph TB
     A3 -->|gRPC stream| B
 
     B --> C
+    B -->|REST| D
+    D -->|Risk scores| B
+    B -.->|gRPC control| A1
+    B -.->|gRPC control| A2
+    B -.->|gRPC control| A3
 
-    B -->|HTTP REST| D
-    D -->|Decision / Risk score| B
+    B -->|REST /api/*| E
 
-    B -.->|gRPC control stream| A1
-    B -.->|gRPC control stream| A2
-    B -.->|gRPC control stream| A3
-
-    style A1 fill:#00ADD8,stroke:#333,stroke-width:2px,color:#000
-    style A2 fill:#00ADD8,stroke:#333,stroke-width:2px,color:#000
-    style A3 fill:#00ADD8,stroke:#333,stroke-width:2px,color:#000
-    style B fill:#7F52FF,stroke:#333,stroke-width:2px,color:#000
-    style C fill:#336791,stroke:#333,stroke-width:2px,color:#000
-    style D fill:#009688,stroke:#333,stroke-width:2px,color:#000
-
-```
-
----
-
-## ✨ Features
-
-### Phase 1: Edge Telemetry Agent ✅
-
-- [x] **Zero-overhead monitoring** - 0% CPU usage at 5s sampling intervals
-- [x] **System-wide metrics** via `/proc` filesystem
-  - CPU usage percentage and load averages
-  - Memory utilization (total, available, swap)
-  - Network I/O rates per interface
-- [x] **Stateful delta calculation** for rate-based metrics
-- [x] **Structured telemetry** using Protocol Buffers
-- [x] **Graceful shutdown** with SIGINT/SIGTERM handling
-- [x] **Error resilience** with status reporting
-
-### Upcoming Phases
-
-- [ ] **Phase 2**: gRPC server with device registry (Ktor)
-- [ ] **Phase 3**: Real-time streaming integration
-- [ ] **Phase 4**: AI-based anomaly detection (Python)
-- [ ] **Phase 5**: Containerized multi-node simulation (Podman)
-- [ ] **Phase 6**: C integration for kernel-level hooks (eBPF)
-
----
-
-## 🏗️ Architecture
-
-### System Design Philosophy
-```mermaid
-flowchart LR
-    subgraph "Data Collection"
-        A["/proc" Interface] --> B[AgentStateful Collectors]
-    end
-    
-    subgraph "Transport"
-        B --> C[gRPC StreamsProtobuf]
-    end
-    
-    subgraph "Coordination"
-        C --> D[BackendDevice Registry]
-        D --> E[(PostgreSQLPersistence)]
-    end
-    
-    subgraph "Intelligence"
-        E --> F[AI EngineAnomaly Detection]
-    end
-    
-    subgraph "Control"
-        F --> G[Decision Logic]
-        G --> H[Command Stream]
-        H -.-> B
-    end
-    
-    style A fill:#f9f,stroke:#333,stroke-width:2px,color:#000
-    style B fill:#00ADD8,stroke:#333,stroke-width:3px,color:#000
-    style C fill:#ff9,stroke:#333,stroke-width:2px,color:#000
-    style D fill:#7F52FF,stroke:#333,stroke-width:3px,color:#000
-    style E fill:#336791,stroke:#333,stroke-width:2px,color:#000
-    style F fill:#009688,stroke:#333,stroke-width:3px,color:#000
-    style G fill:#f96,stroke:#333,stroke-width:2px,color:#000
-    style H fill:#ff9,stroke:#333,stroke-width:2px,color:#000
+    style A1 fill:#00ADD8,stroke:#333,color:#000
+    style A2 fill:#00ADD8,stroke:#333,color:#000
+    style A3 fill:#00ADD8,stroke:#333,color:#000
+    style B fill:#7F52FF,stroke:#333,color:#000
+    style C fill:#336791,stroke:#333,color:#000
+    style D fill:#009688,stroke:#333,color:#000
+    style E fill:#61DAFB,stroke:#333,color:#000
 ```
 
 ### Data Flow
 ```mermaid
 sequenceDiagram
-    participant Agent as Edge Agent
-    participant Backend as Backend API
+    participant Agent as Edge Agent (Go)
+    participant Backend as Backend (Ktor)
     participant DB as PostgreSQL
     participant AI as AI Engine
-    
+    participant UI as Dashboard (React)
+
     Note over Agent: Every 5 seconds
     Agent->>Agent: Read /proc/stat, /proc/meminfo, /proc/net/dev
     Agent->>Agent: Calculate deltas (CPU%, bytes/sec)
     Agent->>Backend: gRPC Stream: Metric (Protobuf)
     Backend->>DB: Persist metric
     Backend->>Backend: Update device registry
-    
+
     Note over Backend: Every 60 seconds
     Backend->>DB: Query recent metrics
     Backend->>AI: POST /analyze (batch)
-    AI->>AI: Anomaly detection (Z-score, thresholds)
-    AI-->>Backend: Risk scores + explanations
-    
+    AI->>AI: Anomaly detection (Z-score)
+    AI-->>Backend: Risk scores
+
     alt Anomaly detected
-        Backend->>Agent: gRPC Stream: Command (throttle/alert)
+        Backend->>Agent: gRPC Stream: Command
         Agent->>Agent: Execute control action
-        Agent-->>Backend: Ack
     end
+
+    Note over UI: Every 5 seconds
+    UI->>Backend: GET /api/devices
+    UI->>Backend: GET /api/devices/:id/metrics
+    Backend-->>UI: JSON response
 ```
 
 ---
@@ -183,40 +136,56 @@ sequenceDiagram
 
 | Layer | Technology | Justification |
 |-------|-----------|---------------|
-| **Agent** | Go 1.21+ | • Fast, compiled binary<br/>• Excellent `/proc` parsing<br/>• Built-in concurrency<br/>• Low memory footprint |
-| **Transport** | gRPC + Protobuf | • Binary serialization (50-100 bytes vs 500+ for JSON)<br/>• Streaming support<br/>• Type safety<br/>• Built-in backpressure |
-| **Backend** | Ktor (Kotlin) | • Coroutine-based async I/O<br/>• Strong typing<br/>• gRPC + HTTP in one service |
-| **Database** | PostgreSQL 15+ | • JSONB for flexible schemas<br/>• Time-series extensions (TimescaleDB potential)<br/>• ACID guarantees |
-| **AI/ML** | Python 3.14+ FastAPI | • Existing ML stack (PyTorch, NumPy)<br/>• Fast prototyping<br/>• Statistical libraries |
-| **Containers** | Podman | • Rootless by default<br/>• Docker-compatible<br/>• Better security model |
+| **Agent** | Go 1.21+ | Low memory footprint, excellent `/proc` ergonomics, built-in concurrency, single static binary |
+| **Transport** | gRPC + Protobuf | Binary serialisation (50–100 bytes vs 500+ for JSON), streaming support, schema evolution via field numbers |
+| **Backend** | Ktor (Kotlin) | Coroutine-based async I/O, strong typing, gRPC and REST HTTP in one service |
+| **Database** | PostgreSQL 15+ | JSONB for flexible metric payloads, ACID guarantees, TimescaleDB-ready |
+| **AI/ML** | Python + FastAPI | Existing ML stack (PyTorch, NumPy, scikit-learn), fast statistical prototyping |
+| **Dashboard** | React 19 + TypeScript | Type-safe UI, co-located with types shared from Protobuf schema |
+| **Containers** | Podman | Rootless by default, Docker-compatible, better security model |
+| **Low-level (Phase 6)** | C + CGo | Introduced only where Go cannot reach: eBPF kernel probes |
 
 ---
 
 ## 📊 Project Status
 
-### Phase 1: Complete ✅ (2026-01-21)
+### Phase 1: Linux Telemetry Agent ✅ (Complete)
 
-**Deliverables:**
-- ✅ Go agent with `/proc` parsing  
-- ✅ Protobuf schema for structured metrics  
-- ✅ CPU, memory, network collectors  
-- ✅ Stateful delta calculations  
-- ✅ Error handling with status codes  
-- ✅ Graceful shutdown  
-- ✅ JSON output for validation  
+- ✅ Protobuf schema design
+- ✅ CPU collector with jiffy delta calculation (`/proc/stat`)
+- ✅ Memory collector with `MemAvailable` semantics (`/proc/meminfo`)
+- ✅ Network I/O rate collector (`/proc/net/dev`)
+- ✅ Stateful delta calculation for rate-based metrics
+- ✅ Graceful shutdown on SIGINT / SIGTERM
+- ✅ JSON output for validation
 
-**Validation Results:**
-| Metric | Target | Actual | Status |
-|--------|--------|--------|--------|
-| Agent CPU overhead | < 1% | **0.00%** | ✅ |
-| Memory footprint | < 20 MB | ~10 MB | ✅ |
-| CPU accuracy | ±5% vs `top` | ±2% | ✅ |
-| Memory accuracy | Matches `free` | Exact match | ✅ |
-| First sample behavior | Zero deltas | Confirmed | ✅ |
+**Validation:**
 
-### Current Focus: Phase 2 (In Progress)
+| Metric | Target | Actual |
+|--------|--------|--------|
+| CPU overhead | < 1% | **0.00%** |
+| Memory footprint | < 20 MB | ~10 MB |
+| CPU accuracy vs `top` | ± 5% | ± 2% |
+| Memory accuracy vs `free` | Exact | Exact |
 
-Building Ktor gRPC server for receiving telemetry streams.
+### Phase 2: Backend + Dashboard Integration 🔄 (In Progress)
+
+- ✅ REST API endpoints (`GET /api/devices`, `/api/devices/:id/metrics`)
+- ✅ In-memory device registry
+- ✅ Dashboard connected and reading live data
+- ✅ CORS configured for dashboard dev server
+- [ ] gRPC `TelemetryService.StreamMetrics` implementation
+- [ ] Agent migrated from JSON file output to gRPC stream
+- [ ] Graceful stream handling and reconnection
+
+### Upcoming
+
+| Phase | Goal | Status |
+|-------|------|--------|
+| 3 | PostgreSQL persistence + time-range queries | Planned |
+| 4 | AI anomaly detection (Python / FastAPI) | Planned |
+| 5 | Podman multi-node simulation | Planned |
+| 6 | C integration — eBPF kernel probes via CGo | Planned |
 
 ---
 
@@ -224,59 +193,42 @@ Building Ktor gRPC server for receiving telemetry streams.
 
 ### Prerequisites
 ```bash
-# Check versions
 go version        # >= 1.21
 protoc --version  # >= 3.19
 ```
 
-### Installation
+### Agent
 ```bash
-# Clone repository
 git clone https://github.com/Yahia995/edge-telemetry.git
 cd edge-telemetry/agent
 
 # Generate protobuf code
 ./scripts/generate-proto.sh
 
-# Build agent
+# Build
 go build -o bin/agent cmd/agent/main.go
-```
 
-### Running the Agent
-```bash
-# Basic usage
-./bin/agent --device-id=my-device --interval=5s --output=metrics.json
+# Run
+./bin/agent --device-id=dev1 --interval=5s --output=metrics.json
 
-# Monitor output
+# Validate (compare with system tools)
 tail -f metrics.json
+top -d 5
 ```
 
-### Example Output
-```json
-{
-  "device_id": "my-device",
-  "timestamp": 1737484800000,
-  "status": "STATUS_OK",
-  "Payload": {
-    "Cpu": {
-      "usage_percent": 23.4,
-      "load_avg_1m": 1.52,
-      "load_avg_5m": 1.89,
-      "load_avg_15m": 2.01
-    }
-  }
-}
-```
-
-### Validation
+### Backend (Phase 2)
 ```bash
-# Compare with system tools
-./bin/agent --device-id=test --interval=5s --output=test.json &
-top -d 5  # Check %Cpu(s): line matches usage_percent
+cd edge-telemetry/backend
+./gradlew run
+# Starts on :8080
+```
 
-# Measure agent overhead
-pidstat -p $(pgrep agent) 1 10
-# Expected: 0.00% CPU
+### Dashboard
+
+See [telemetry-dashboard](https://github.com/Yahia995/telemetry-dashboard) for full setup.
+```bash
+# Quick start with real backend
+VITE_USE_MOCK_API=false VITE_API_URL=http://localhost:8080 npm run dev
 ```
 
 ---
@@ -284,7 +236,7 @@ pidstat -p $(pgrep agent) 1 10
 ## 📁 Project Structure
 ```
 edge-telemetry/
-├── agent/                           # Go telemetry agent
+├── agent/                          # Go telemetry agent (Phase 1 ✅)
 │   ├── cmd/agent/
 │   │   └── main.go                 # Entry point, signal handling
 │   ├── internal/
@@ -294,18 +246,21 @@ edge-telemetry/
 │   │   │   ├── memory.go           # /proc/meminfo parser
 │   │   │   └── network.go          # /proc/net/dev parser
 │   │   └── config/
-│   │       └── config.go           # CLI flags, configuration
+│   │       └── config.go           # CLI flags
 │   ├── proto/
-│   │   ├── telemetry.proto         # Protobuf schema (source)
+│   │   ├── telemetry.proto         # Protobuf schema
 │   │   └── telemetry/              # Generated code (gitignored)
 │   ├── scripts/
-│   │   └── generate-proto.sh       # Protobuf codegen script
-│   ├── go.mod                      # Go module definition
-│   ├── go.sum                      # Dependency lock file
-│   └── README.md
-├── backend/                         # Ktor backend (Phase 2)
-├── ai-engine/                       # Python AI module (Phase 4)
-├── .gitignore
+│   │   └── generate-proto.sh
+│   ├── go.mod
+│   └── go.sum
+├── backend/                        # Ktor backend (Phase 2 🔄)
+│   ├── src/main/kotlin/
+│   │   ├── Application.kt
+│   │   ├── routing/
+│   │   └── registry/
+│   └── build.gradle.kts
+├── ai-engine/                      # Python AI module (Phase 4)
 └── README.md
 ```
 
@@ -315,183 +270,49 @@ edge-telemetry/
 ```mermaid
 timeline
     title Development Roadmap
-    Phase 1 : Agent + /proc parsing
-    Phase 2 : Ktor gRPC server : Device registry
-    Phase 3 : gRPC integration : PostgreSQL persistence
-    Phase 4 : AI decision module : Control feedback
-    Phase 5 : Podman containerization : Failure scenarios
-    Phase 6 : C integration (eBPF)
-
+    Phase 1 : Agent + /proc parsing : ✅ Complete
+    Phase 2 : Ktor REST + gRPC server : Dashboard integration : 🔄 In Progress
+    Phase 3 : gRPC agent integration : PostgreSQL persistence
+    Phase 4 : AI anomaly detection : Control feedback loop
+    Phase 5 : Podman containerization : Failure scenario testing
+    Phase 6 : C via CGo : eBPF kernel probes
 ```
 
-### Detailed Phases
-
-<details>
-<summary><b>Phase 1: Linux Telemetry Agent</b> ✅</summary>
-
-**Goal:** Understand `/proc` semantics, build stable collector
-
-- [x] Protobuf schema design
-- [x] CPU collector with jiffy deltas
-- [x] Memory collector with MemAvailable
-- [x] Network collector with rate calculation
-- [x] Graceful shutdown
-- [x] Validation against system tools
-
-**Key Learning:** `/proc` parsing, Go channels, Protobuf
-</details>
-
-<details>
-<summary><b>Phase 2: Backend Core</b> 🔄</summary>
-
-**Goal:** Central coordination point
-
-- [ ] Ktor project setup with gRPC plugin
-- [ ] `TelemetryService.StreamMetrics` implementation
-- [ ] In-memory device registry
-- [ ] HTTP admin API (`GET /devices`, `GET /health`)
-- [ ] Graceful stream handling
-
-**Key Learning:** gRPC servers, Kotlin coroutines, service design
-</details>
-
-<details>
-<summary><b>Phase 3: Integration</b></summary>
-
-**Goal:** Close the telemetry loop
-
-- [ ] Agent gRPC client (replace JSON output)
-- [ ] Backend PostgreSQL schema
-- [ ] Metric persistence with batching
-- [ ] HTTP query API (time-range queries)
-- [ ] Multi-agent simulation (3+ local processes)
-
-**Key Learning:** gRPC streaming, database design, connection management
-</details>
-
-<details>
-<summary><b>Phase 4: Intelligence</b></summary>
-
-**Goal:** Useful AI decisions
-
-- [ ] FastAPI service setup
-- [ ] Statistical anomaly detection (Z-score)
-- [ ] Threshold-based rules
-- [ ] Explainable output
-- [ ] Backend → AI integration
-- [ ] `ControlService.StreamCommands` (gRPC)
-- [ ] Agent command execution (mock)
-
-**Key Learning:** Anomaly detection, API integration, bidirectional gRPC
-</details>
-
-<details>
-<summary><b>Phase 5: Containerization</b></summary>
-
-**Goal:** Realistic distributed testing
-
-- [ ] Dockerfiles for all components
-- [ ] `podman-compose.yml`
-- [ ] Network isolation testing
-- [ ] Failure injection (kill containers, network partition)
-- [ ] Resource limits validation
-
-**Key Learning:** Container networking, failure modes, resilience
-</details>
-
-<details>
-<summary><b>Phase 6: C Optimization</b></summary>
-
-**Goal:** Demonstrate Go → C progression
-
-- [ ] Profile Go agent under load
-- [ ] Identify bottleneck (if any)
-- [ ] C module via CGo (e.g., eBPF probe)
-- [ ] Benchmark comparison
-- [ ] Document when C is justified
-
-**Key Learning:** CGo, eBPF, performance profiling
-</details>
+**Note on the Go → C progression:** C is intentionally deferred to Phase 6. The Go agent already achieves 0.00% CPU overhead at 5s intervals, which means there is no performance case for C yet. Phase 6 introduces C only because eBPF kernel probes require it — not as an optimisation. This respects the principle of avoiding premature complexity.
 
 ---
 
 ## ⚡ Performance
 
-### Agent Benchmarks (Phase 1)
-
-**Test Environment:**
-- OS: Fedora Workstation 43
-- Kernel: 6.18.5-200.fc43.x86_64
-- CPU: 16 cores
-- RAM: 24 GB
-
-**Results:**
+**Test environment:** Fedora Workstation 43, kernel 6.18.5, 16-core CPU, 24 GB RAM
 
 | Metric | Value |
 |--------|-------|
-| CPU Overhead | **0.00%** (5s interval) |
-| Memory (RSS) | ~10 MB |
-| Metric Latency | < 1ms (read + parse) |
-| Syscalls/Sample | ~10 (3 file reads) |
+| CPU overhead (5s interval) | **0.00%** |
+| Memory footprint (RSS) | ~10 MB |
+| Parse latency per sample | < 1 ms |
+| Syscalls per sample | ~10 |
 
 **Scalability projection:**
-- 100 agents @ 5s interval = 20 metrics/sec → negligible backend load
-- 1000 agents @ 5s interval = 200 metrics/sec → batching required
-
----
-
-## 🤝 Contributing
-
-This is an academic project (Projet SI), but feedback is welcome!
-
-### Development Setup
-```bash
-# Fork and clone
-git clone https://github.com/Yahia995/edge-telemetry.git
-cd edge-telemetry
-
-# Create feature branch
-git checkout -b feature/your-feature
-
-# Make changes, test, commit
-git commit -m "feat: your feature description"
-git push origin feature/your-feature
-```
-
-### Code Style
-
-- **Go:** `gofmt` + `golint`
-- **Kotlin:** KtLint
-- **Python:** Black + isort
-- **Commits:** [Conventional Commits](https://www.conventionalcommits.org/)
+- 100 agents at 5s interval → 20 metrics/sec → negligible backend load
+- 1000 agents at 5s interval → 200 metrics/sec → batching required (Phase 3)
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **Business Source License 1.1 (BSL 1.1)**.
+**Business Source License 1.1 (BSL 1.1)**
 
 - Allowed: Non-production academic evaluation and grading ("Projet SI")
-- Not allowed: Commercial use, production deployment, or redistribution for profit
+- Not allowed: Commercial use, production deployment, redistribution for profit
 
-The project will automatically transition to **Apache License 2.0** on **January 1, 2030**.
-See the `LICENSE` file for full details.
+Transitions to **Apache License 2.0** on January 1, 2030. See `LICENSE` for full terms.
 
 ---
 
 ## 👤 Author
 
-**[@Yahia995](https://github.com/Yahia995)**  
-Software Engineering Student  
-📍 Tunisia  
-📅 2026
-
----
-
-## 🙏 Acknowledgments
-
-- **Fedora Project** for providing an excellent development platform
-- **Go, Kotlin, Python communities** for robust tooling
+**[@Yahia995](https://github.com/Yahia995)** — Software Engineering Student, Tunisia, 2026
 
 ---
 
