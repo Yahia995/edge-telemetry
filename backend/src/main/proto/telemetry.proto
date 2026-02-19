@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package telemetry.v1;
+
+// Both the Go agent and the Kotlin backend compile from this same logical schema.
+// The agent's copy lives at agent/proto/telemetry.proto.
+// In a larger project you would extract this to a shared `proto/` directory
+// at the repo root and have both build systems reference it.
+// For now, keeping a copy here is simpler and the field numbers guarantee
+// wire compatibility as long as they never change.
+option java_package = "app.edge_telemetry.grpc.proto";
+option java_outer_classname = "TelemetryProto";
+option java_multiple_files = true;
+
+// === Core metric message ===
+
+message Metric {
+  string device_id = 1;
+  int64 timestamp = 2;           // Unix epoch milliseconds (UTC)
+  MetricStatus status = 3;
+
+  oneof payload {
+    CpuMetric cpu = 10;
+    MemoryMetric memory = 11;
+    NetworkMetric network = 12;
+  }
+}
+
+enum MetricStatus {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_OK = 1;
+  STATUS_PARSE_ERROR = 2;
+  STATUS_PERMISSION_DENIED = 3;
+}
+
+// === Metric types ===
+
+message CpuMetric {
+  float usage_percent = 1;       // 0.0 - 100.0
+  float load_avg_1m = 2;
+  float load_avg_5m = 3;
+  float load_avg_15m = 4;
+}
+
+message MemoryMetric {
+  uint64 total_kb = 1;
+  uint64 available_kb = 2;
+  uint64 used_kb = 3;
+  float usage_percent = 4;
+  uint64 swap_total_kb = 10;
+  uint64 swap_free_kb = 11;
+  float swap_usage_percent = 12;
+}
+
+message NetworkMetric {
+  string interface_name = 1;
+  uint64 rx_bytes_per_sec = 2;
+  uint64 tx_bytes_per_sec = 3;
+  uint64 rx_errors = 10;
+  uint64 tx_errors = 11;
+  uint64 rx_dropped = 12;
+  uint64 tx_dropped = 13;
+}
+
+// === Service ===
+
+service TelemetryService {
+  // Client-streaming RPC: agent sends a continuous stream of Metric messages,
+  // server acknowledges with a single Ack when the stream closes.
+  rpc StreamMetrics(stream Metric) returns (Ack);
+}
+
+message Ack {
+  bool success = 1;
+  string message = 2;
+  int64 metrics_received = 3;
+}
