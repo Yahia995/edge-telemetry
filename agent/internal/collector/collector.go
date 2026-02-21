@@ -9,9 +9,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
-// Reconnection backoff parameters.
 const (
 	initialBackoff = 2 * time.Second
 	maxBackoff     = 30 * time.Second
@@ -35,14 +35,10 @@ func NewCollector(cfg *config.Config) (*Collector, error) {
 	}, nil
 }
 
-// Start begins the collection loop and blocks until ctx is cancelled.
 func (c *Collector) Start(ctx context.Context) {
 	ticker := time.NewTicker(c.cfg.SamplingInterval)
 	defer ticker.Stop()
 
-	// grpcSender runs in its own goroutine and owns the backend connection.
-	// It reads from metricChan independently of the collection ticker so
-	// a slow or disconnected backend doesn't block the collectors.
 	go c.grpcSender(ctx)
 
 	log.Infof("Starting metric collection (interval: %v, backend: %s)",
@@ -102,7 +98,6 @@ func (c *Collector) collectAll() {
 	}
 }
 
-// send is a non-blocking push into the channel.
 func (c *Collector) send(metric *pb.Metric) {
 	select {
 	case c.metricChan <- metric:
@@ -112,14 +107,6 @@ func (c *Collector) send(metric *pb.Metric) {
 }
 
 // === gRPC transport ===
-
-// grpcSender owns the backend connection lifecycle.
-// It delegates each connection attempt to runStream and handles reconnection
-// with exponential backoff when the stream fails.
-//
-// Separation of concerns:
-//   runStream: "maintain one stream until it fails or ctx is done"
-//   grpcSender: "keep a stream alive across failures"
 func (c *Collector) grpcSender(ctx context.Context) {
 	backoff := initialBackoff
 
@@ -140,7 +127,6 @@ func (c *Collector) grpcSender(ctx context.Context) {
 		for {
 			select {
 			case <-c.metricChan:
-				// dropped
 			default:
 				break drain
 			}
@@ -161,13 +147,15 @@ func (c *Collector) grpcSender(ctx context.Context) {
 	}
 }
 
-// runStream dials the backend, opens a client-streaming RPC, and forwards
-// every metric from the channel until the stream closes or ctx is cancelled.
-// It returns nil on clean shutdown, or an error if the stream failed.
 func (c *Collector) runStream(ctx context.Context) error {
 	conn, err := grpc.NewClient(
 		c.cfg.BackendAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                10 * time.Second,
+			Timeout:             5 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	)
 	if err != nil {
 		return err
@@ -186,8 +174,6 @@ func (c *Collector) runStream(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			// Agent is shutting down. Close the stream gracefully so the
-			// backend receives the Ack and logs a clean disconnect.
 			_, closeErr := stream.CloseAndRecv()
 			if closeErr != nil {
 				log.Debugf("Stream close: %v", closeErr)
