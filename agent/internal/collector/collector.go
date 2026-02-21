@@ -1,130 +1,211 @@
 package collector
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "os"
-    "time"
+	"context"
+	"time"
 
-    pb "github.com/Yahia995/edge-telemetry/agent/proto/telemetry"
-    "github.com/Yahia995/edge-telemetry/agent/internal/config"
-    log "github.com/sirupsen/logrus"
+	pb "github.com/Yahia995/edge-telemetry/agent/proto/telemetry"
+	"github.com/Yahia995/edge-telemetry/agent/internal/config"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+// Reconnection backoff parameters.
+const (
+	initialBackoff = 2 * time.Second
+	maxBackoff     = 30 * time.Second
 )
 
 type Collector struct {
-    cfg           *config.Config
-    cpuCollector  *CpuCollector
-    memCollector  *MemoryCollector
-    netCollector  *NetworkCollector
-    metricChan    chan *pb.Metric
-    outputFile    *os.File
+	cfg          *config.Config
+	cpuCollector *CpuCollector
+	memCollector *MemoryCollector
+	netCollector *NetworkCollector
+	metricChan   chan *pb.Metric
 }
 
 func NewCollector(cfg *config.Config) (*Collector, error) {
-    // Open output file
-    file, err := os.Create(cfg.OutputFile)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create output file: %w", err)
-    }
-
-    return &Collector{
-        cfg:          cfg,
-        cpuCollector: NewCpuCollector(),
-        memCollector: NewMemoryCollector(),
-        netCollector: NewNetworkCollector(),
-        metricChan:   make(chan *pb.Metric, 100), // Buffered channel
-        outputFile:   file,
-    }, nil
+	return &Collector{
+		cfg:          cfg,
+		cpuCollector: NewCpuCollector(),
+		memCollector: NewMemoryCollector(),
+		netCollector: NewNetworkCollector(),
+		metricChan:   make(chan *pb.Metric, 100),
+	}, nil
 }
 
-// Start begins the collection loop
+// Start begins the collection loop and blocks until ctx is cancelled.
 func (c *Collector) Start(ctx context.Context) {
-    ticker := time.NewTicker(c.cfg.SamplingInterval)
-    defer ticker.Stop()
+	ticker := time.NewTicker(c.cfg.SamplingInterval)
+	defer ticker.Stop()
 
-    // Start sender goroutine
-    go c.sender(ctx)
+	// grpcSender runs in its own goroutine and owns the backend connection.
+	// It reads from metricChan independently of the collection ticker so
+	// a slow or disconnected backend doesn't block the collectors.
+	go c.grpcSender(ctx)
 
-    log.Infof("Starting metric collection (interval: %v)", c.cfg.SamplingInterval)
+	log.Infof("Starting metric collection (interval: %v, backend: %s)",
+		c.cfg.SamplingInterval, c.cfg.BackendAddr)
 
-    for {
-        select {
-        case <-ctx.Done():
-            log.Info("Shutting down collector")
-            close(c.metricChan)
-            return
-        case <-ticker.C:
-            c.collectAll()
-        }
-    }
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("Shutting down collector")
+			close(c.metricChan)
+			return
+		case <-ticker.C:
+			c.collectAll()
+		}
+	}
 }
 
 func (c *Collector) collectAll() {
-    timestamp := time.Now().UnixMilli()
+	timestamp := time.Now().UnixMilli()
 
-    // Collect CPU
-    cpuMetric, cpuStatus, err := c.cpuCollector.Collect()
-    if err != nil {
-        log.Warnf("CPU collection error: %v", err)
-    }
-    c.metricChan <- &pb.Metric{
-        DeviceId:  c.cfg.DeviceID,
-        Timestamp: timestamp,
-        Status:    cpuStatus,
-        Payload:   &pb.Metric_Cpu{Cpu: cpuMetric},
-    }
+	// CPU
+	cpuMetric, cpuStatus, err := c.cpuCollector.Collect()
+	if err != nil {
+		log.Warnf("CPU collection error: %v", err)
+	}
+	c.send(&pb.Metric{
+		DeviceId:  c.cfg.DeviceID,
+		Timestamp: timestamp,
+		Status:    cpuStatus,
+		Payload:   &pb.Metric_Cpu{Cpu: cpuMetric},
+	})
 
-    // Collect Memory
-    memMetric, memStatus, err := c.memCollector.Collect()
-    if err != nil {
-        log.Warnf("Memory collection error: %v", err)
-    }
-    c.metricChan <- &pb.Metric{
-        DeviceId:  c.cfg.DeviceID,
-        Timestamp: timestamp,
-        Status:    memStatus,
-        Payload:   &pb.Metric_Memory{Memory: memMetric},
-    }
+	// Memory
+	memMetric, memStatus, err := c.memCollector.Collect()
+	if err != nil {
+		log.Warnf("Memory collection error: %v", err)
+	}
+	c.send(&pb.Metric{
+		DeviceId:  c.cfg.DeviceID,
+		Timestamp: timestamp,
+		Status:    memStatus,
+		Payload:   &pb.Metric_Memory{Memory: memMetric},
+	})
 
-    // Collect Network (multiple interfaces)
-    netMetrics, netStatus, err := c.netCollector.Collect()
-    if err != nil {
-        log.Warnf("Network collection error: %v", err)
-    }
-    for _, netMetric := range netMetrics {
-        c.metricChan <- &pb.Metric{
-            DeviceId:  c.cfg.DeviceID,
-            Timestamp: timestamp,
-            Status:    netStatus,
-            Payload:   &pb.Metric_Network{Network: netMetric},
-        }
-    }
+	// Network (one message per interface)
+	netMetrics, netStatus, err := c.netCollector.Collect()
+	if err != nil {
+		log.Warnf("Network collection error: %v", err)
+	}
+	for _, netMetric := range netMetrics {
+		c.send(&pb.Metric{
+			DeviceId:  c.cfg.DeviceID,
+			Timestamp: timestamp,
+			Status:    netStatus,
+			Payload:   &pb.Metric_Network{Network: netMetric},
+		})
+	}
 }
 
-// sender writes metrics to output file (JSON for now)
-func (c *Collector) sender(ctx context.Context) {
-    encoder := json.NewEncoder(c.outputFile)
-    encoder.SetIndent("", "  ")
+// send is a non-blocking push into the channel.
+func (c *Collector) send(metric *pb.Metric) {
+	select {
+	case c.metricChan <- metric:
+	default:
+		log.Warn("Metric channel full — dropping metric (backend unavailable?)")
+	}
+}
 
-    for {
-        select {
-        case <-ctx.Done():
-            return
-        case metric, ok := <-c.metricChan:
-            if !ok {
-                // Channel closed
-                return
-            }
+// === gRPC transport ===
 
-            // Convert protobuf to JSON for human readability
-            if err := encoder.Encode(metric); err != nil {
-                log.Errorf("Failed to write metric: %v", err)
-            }
-        }
-    }
+// grpcSender owns the backend connection lifecycle.
+// It delegates each connection attempt to runStream and handles reconnection
+// with exponential backoff when the stream fails.
+//
+// Separation of concerns:
+//   runStream: "maintain one stream until it fails or ctx is done"
+//   grpcSender: "keep a stream alive across failures"
+func (c *Collector) grpcSender(ctx context.Context) {
+	backoff := initialBackoff
+
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		err := c.runStream(ctx)
+
+		if ctx.Err() != nil {
+			return
+		}
+
+		log.Warnf("Stream to backend lost: %v — reconnecting in %v", err, backoff)
+
+	drain:
+		for {
+			select {
+			case <-c.metricChan:
+				// dropped
+			default:
+				break drain
+			}
+		}
+
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return
+		}
+
+		if backoff < maxBackoff {
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
+}
+
+// runStream dials the backend, opens a client-streaming RPC, and forwards
+// every metric from the channel until the stream closes or ctx is cancelled.
+// It returns nil on clean shutdown, or an error if the stream failed.
+func (c *Collector) runStream(ctx context.Context) error {
+	conn, err := grpc.NewClient(
+		c.cfg.BackendAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	client := pb.NewTelemetryServiceClient(conn)
+
+	stream, err := client.StreamMetrics(ctx)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Connected to backend at %s", c.cfg.BackendAddr)
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Agent is shutting down. Close the stream gracefully so the
+			// backend receives the Ack and logs a clean disconnect.
+			_, closeErr := stream.CloseAndRecv()
+			if closeErr != nil {
+				log.Debugf("Stream close: %v", closeErr)
+			}
+			return nil
+
+		case metric, ok := <-c.metricChan:
+			if !ok {
+				stream.CloseAndRecv()
+				return nil
+			}
+			if err := stream.Send(metric); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func (c *Collector) Close() error {
-    return c.outputFile.Close()
+	return nil
 }
