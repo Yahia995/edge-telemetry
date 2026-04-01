@@ -1,0 +1,56 @@
+# =============================================================================
+# Edge Telemetry — Backend Development Services
+# Phase 3: PostgreSQL persistence
+#
+# Usage:
+#   pup          # alias for: podman-compose up -d
+#   pdown        # alias for: podman-compose down
+#
+# Data is persisted in a named volume (postgres_data) so the database
+# survives container restarts. To reset to a clean schema:
+#   podman-compose down -v    # -v removes the named volume
+#   podman-compose up -d      # init.sql runs again on fresh container
+#
+# The backend connects using environment variables (see Config.kt).
+# Defaults match what is configured here, so local dev needs no extra setup:
+#   DATABASE_URL      = jdbc:postgresql://localhost:5432/telemetry
+#   DATABASE_USER     = telemetry
+#   DATABASE_PASSWORD = telemetry
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: edge-telemetry-db
+    environment:
+      POSTGRES_DB:       telemetry
+      POSTGRES_USER:     telemetry
+      POSTGRES_PASSWORD: telemetry
+
+    ports:
+      # Expose on 127.0.0.1 only — the backend connects locally.
+      # In Phase 5 (multi-container Podman network), this binding changes
+      # to a private bridge network and the port is no longer published.
+      - "127.0.0.1:5432:5432"
+
+    volumes:
+      # Mount the schema so it runs automatically on first container start.
+      # PostgreSQL executes all *.sql files in /docker-entrypoint-initdb.d/
+      # in alphabetical order, but only when the data directory is empty.
+      - ./src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+
+      # Named volume — data survives `podman-compose down` (without -v).
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telemetry -d telemetry"]
+      interval: 5s
+      timeout:  5s
+      retries:  5
+      start_period: 10s
+
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
