@@ -1,9 +1,11 @@
 package app.edge_telemetry
 
+import app.edge_telemetry.config.AppConfig
 import app.edge_telemetry.grpc.TelemetryGrpcService
 import app.edge_telemetry.models.*
 import app.edge_telemetry.routes.deviceRoutes
 import app.edge_telemetry.storage.InMemoryRepository
+import app.edge_telemetry.storage.PostgresRepository
 import app.edge_telemetry.storage.TelemetryRepository
 import io.grpc.ServerBuilder
 import io.ktor.http.*
@@ -24,33 +26,29 @@ import org.slf4j.event.Level
 
 // Two servers, one JVM process, one shared repository:
 //
-//   :8080  — Ktor HTTP/REST  (dashboard, health checks)
-//   :50051 — gRPC            (agent telemetry stream)
+//   :<HTTP_PORT>  — Ktor REST  (dashboard, health checks)
+//   :<GRPC_PORT>  — gRPC       (agent telemetry stream)
 //
-// Both servers receive the same [TelemetryRepository] instance.
-// Metrics written by the gRPC server are immediately visible through
-// the REST API — no IPC, no serialization between transports.
+// Repository selection at startup:
+//   DATABASE_URL absent  → InMemoryRepository (no dependencies, dev/test)
+//   DATABASE_URL present → PostgresRepository (persistent, production-like)
 //
-// Repository selection (Phase 3 step 6 will extend this):
-//   - DATABASE_URL absent → InMemoryRepository  (no external dependency)
-//   - DATABASE_URL present → PostgresRepository (to be implemented)
-
-private const val HTTP_PORT = 8080
-private const val GRPC_PORT = 50051
+// TelemetryGrpcService and DeviceRoutes depend only on TelemetryRepository.
+// Neither knows which implementation is active — that is buildRepository()'s
+// sole responsibility.
 
 private val log = LoggerFactory.getLogger("app.edge_telemetry.Application")
 
 fun main() {
     val repository: TelemetryRepository = buildRepository()
 
-    // gRPC server
     val grpcServer = ServerBuilder
-        .forPort(GRPC_PORT)
+        .forPort(AppConfig.grpcPort)
         .addService(TelemetryGrpcService(repository))
         .build()
 
     grpcServer.start()
-    log.info("gRPC server started on port {}", GRPC_PORT)
+    log.info("gRPC server started on port {}", AppConfig.grpcPort)
 
     Runtime.getRuntime().addShutdownHook(Thread {
         log.info("Shutting down gRPC server")
@@ -58,34 +56,27 @@ fun main() {
         grpcServer.awaitTermination()
     })
 
-    // Ktor HTTP server
-    embeddedServer(Netty, port = HTTP_PORT, host = "0.0.0.0") {
+    embeddedServer(Netty, port = AppConfig.httpPort, host = "0.0.0.0") {
         module(repository)
     }.start(wait = true)
 }
 
-/**
- * Selects the repository implementation based on environment.
- *
- * DATABASE_URL absent  → [InMemoryRepository]:  works out of the box,
- *                        no Podman required. Suitable for agent dev work.
- * DATABASE_URL present → PostgresRepository:     persistent storage.
- *                        Introduced in Phase 3 step 6.
- *
- * This function is the single place where the implementation choice is
- * made. TelemetryGrpcService and DeviceRoutes depend only on the interface.
- */
 private fun buildRepository(): TelemetryRepository {
-    val dbUrl = System.getenv("DATABASE_URL")
-    return if (dbUrl.isNullOrBlank()) {
+    val url = AppConfig.databaseUrl
+
+    return if (url == null) {
         log.info("DATABASE_URL not set — using in-memory repository (no persistence)")
         InMemoryRepository()
     } else {
-        // PostgresRepository will be wired here in Phase 3 step 6.
-        // For now, fall back to in-memory so the service stays runnable.
-        log.warn("DATABASE_URL is set but PostgresRepository is not yet implemented — " +
-                 "falling back to in-memory repository")
-        InMemoryRepository()
+        log.info("DATABASE_URL set — connecting to PostgreSQL at {}", url)
+        PostgresRepository.create(
+            url      = url,
+            user     = AppConfig.databaseUser,
+            password = AppConfig.databasePassword,
+            poolSize = AppConfig.databasePoolSize
+        ).also {
+            log.info("PostgreSQL connection pool ready (size={})", AppConfig.databasePoolSize)
+        }
     }
 }
 
@@ -131,16 +122,16 @@ fun Application.module(repository: TelemetryRepository) {
         get("/") {
             call.respond(ApiInfoResponse(
                 name    = "Edge Telemetry Backend",
-                version = "0.2.0",
+                version = "0.3.0",
                 endpoints = mapOf(
                     "devices" to "/api/devices",
                     "health"  to "/api/health",
-                    "grpc"    to "port $GRPC_PORT (TelemetryService.StreamMetrics)"
+                    "grpc"    to "port ${AppConfig.grpcPort} (TelemetryService.StreamMetrics)"
                 )
             ))
         }
         deviceRoutes(repository)
     }
 
-    environment.log.info("Ktor HTTP server started on port {}", HTTP_PORT)
+    environment.log.info("Ktor HTTP server started on port {}", AppConfig.httpPort)
 }
