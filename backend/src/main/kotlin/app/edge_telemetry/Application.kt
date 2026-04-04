@@ -3,7 +3,8 @@ package app.edge_telemetry
 import app.edge_telemetry.grpc.TelemetryGrpcService
 import app.edge_telemetry.models.*
 import app.edge_telemetry.routes.deviceRoutes
-import app.edge_telemetry.storage.DeviceRegistry
+import app.edge_telemetry.storage.InMemoryRepository
+import app.edge_telemetry.storage.TelemetryRepository
 import io.grpc.ServerBuilder
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -21,60 +22,80 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 
-// gRPC and Ktor run on separate ports:
+// Two servers, one JVM process, one shared repository:
 //
 //   :8080  — Ktor HTTP/REST  (dashboard, health checks)
 //   :50051 — gRPC            (agent telemetry stream)
 //
-// They share the same DeviceRegistry instance so agent data is immediately
-// visible through the REST API without any inter-process communication.
+// Both servers receive the same [TelemetryRepository] instance.
+// Metrics written by the gRPC server are immediately visible through
+// the REST API — no IPC, no serialization between transports.
+//
+// Repository selection (Phase 3 step 6 will extend this):
+//   - DATABASE_URL absent → InMemoryRepository  (no external dependency)
+//   - DATABASE_URL present → PostgresRepository (to be implemented)
 
-private const val HTTP_PORT  = 8080
-private const val GRPC_PORT  = 50051
+private const val HTTP_PORT = 8080
+private const val GRPC_PORT = 50051
 
 private val log = LoggerFactory.getLogger("app.edge_telemetry.Application")
 
 fun main() {
-    val registry = DeviceRegistry()
+    val repository: TelemetryRepository = buildRepository()
 
-    // ── gRPC server ──────────────────────────────────────────────────────
-    //
-    // ServerBuilder.forPort creates a plain-text (no TLS) gRPC server.
-    // TLS termination belongs at the load balancer in production; for the
-    // Projet SI environment (local / Podman) plain-text is appropriate.
+    // gRPC server
     val grpcServer = ServerBuilder
         .forPort(GRPC_PORT)
-        .addService(TelemetryGrpcService(registry))
+        .addService(TelemetryGrpcService(repository))
         .build()
 
     grpcServer.start()
     log.info("gRPC server started on port {}", GRPC_PORT)
 
-    // Ensure the gRPC server shuts down cleanly when the JVM exits.
-    // This fires on SIGINT / SIGTERM, mirroring the agent's graceful shutdown.
     Runtime.getRuntime().addShutdownHook(Thread {
         log.info("Shutting down gRPC server")
         grpcServer.shutdown()
         grpcServer.awaitTermination()
     })
 
-    // ── Ktor HTTP server ─────────────────────────────────────────────────
-    //
-    // embeddedServer blocks until the server stops, so it must come after
-    // the gRPC server is already started. Both servers share the same JVM
-    // thread pool managed by Ktor's Netty engine.
+    // Ktor HTTP server
     embeddedServer(Netty, port = HTTP_PORT, host = "0.0.0.0") {
-        module(registry)
+        module(repository)
     }.start(wait = true)
 }
 
-fun Application.module(registry: DeviceRegistry) {
+/**
+ * Selects the repository implementation based on environment.
+ *
+ * DATABASE_URL absent  → [InMemoryRepository]:  works out of the box,
+ *                        no Podman required. Suitable for agent dev work.
+ * DATABASE_URL present → PostgresRepository:     persistent storage.
+ *                        Introduced in Phase 3 step 6.
+ *
+ * This function is the single place where the implementation choice is
+ * made. TelemetryGrpcService and DeviceRoutes depend only on the interface.
+ */
+private fun buildRepository(): TelemetryRepository {
+    val dbUrl = System.getenv("DATABASE_URL")
+    return if (dbUrl.isNullOrBlank()) {
+        log.info("DATABASE_URL not set — using in-memory repository (no persistence)")
+        InMemoryRepository()
+    } else {
+        // PostgresRepository will be wired here in Phase 3 step 6.
+        // For now, fall back to in-memory so the service stays runnable.
+        log.warn("DATABASE_URL is set but PostgresRepository is not yet implemented — " +
+                 "falling back to in-memory repository")
+        InMemoryRepository()
+    }
+}
+
+fun Application.module(repository: TelemetryRepository) {
 
     install(ContentNegotiation) {
         json(Json {
-            prettyPrint        = true
-            isLenient          = true
-            ignoreUnknownKeys  = true
+            prettyPrint       = true
+            isLenient         = true
+            ignoreUnknownKeys = true
         })
     }
 
@@ -118,8 +139,7 @@ fun Application.module(registry: DeviceRegistry) {
                 )
             ))
         }
-
-        deviceRoutes(registry)
+        deviceRoutes(repository)
     }
 
     environment.log.info("Ktor HTTP server started on port {}", HTTP_PORT)
