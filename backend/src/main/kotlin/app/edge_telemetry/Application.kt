@@ -1,5 +1,7 @@
 package app.edge_telemetry
 
+import app.edge_telemetry.ai.AiEngineClient
+import app.edge_telemetry.ai.AnomalyScheduler
 import app.edge_telemetry.config.AppConfig
 import app.edge_telemetry.grpc.TelemetryGrpcService
 import app.edge_telemetry.models.*
@@ -23,19 +25,6 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
-
-// Two servers, one JVM process, one shared repository:
-//
-//   :<HTTP_PORT>  — Ktor REST  (dashboard, health checks)
-//   :<GRPC_PORT>  — gRPC       (agent telemetry stream)
-//
-// Repository selection at startup:
-//   DATABASE_URL absent  → InMemoryRepository (no dependencies, dev/test)
-//   DATABASE_URL present → PostgresRepository (persistent, production-like)
-//
-// TelemetryGrpcService and DeviceRoutes depend only on TelemetryRepository.
-// Neither knows which implementation is active — that is buildRepository()'s
-// sole responsibility.
 
 private val log = LoggerFactory.getLogger("app.edge_telemetry.Application")
 
@@ -63,7 +52,6 @@ fun main() {
 
 private fun buildRepository(): TelemetryRepository {
     val url = AppConfig.databaseUrl
-
     return if (url == null) {
         log.info("DATABASE_URL not set — using in-memory repository (no persistence)")
         InMemoryRepository()
@@ -118,11 +106,34 @@ fun Application.module(repository: TelemetryRepository) {
         }
     }
 
+    val aiEngineUrl = AppConfig.aiEngineUrl
+    if (aiEngineUrl != null) {
+        log.info("AI_ENGINE_URL set — starting anomaly scheduler ({})", aiEngineUrl)
+
+        val aiClient  = AiEngineClient(aiEngineUrl)
+        val scheduler = AnomalyScheduler(
+            repository      = repository,
+            aiClient        = aiClient,
+            intervalSeconds = AppConfig.anomalyIntervalSeconds,
+            windowMinutes   = AppConfig.anomalyWindowMinutes
+        )
+
+        scheduler.start()
+
+        environment.monitor.subscribe(ApplicationStopped) {
+            log.info("ApplicationStopped — shutting down anomaly scheduler")
+            scheduler.stop()
+            aiClient.close()
+        }
+    } else {
+        log.info("AI_ENGINE_URL not set — anomaly scheduler disabled")
+    }
+
     routing {
         get("/") {
             call.respond(ApiInfoResponse(
                 name    = "Edge Telemetry Backend",
-                version = "0.3.0",
+                version = "0.4.0",
                 endpoints = mapOf(
                     "devices" to "/api/devices",
                     "health"  to "/api/health",

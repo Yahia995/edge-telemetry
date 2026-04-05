@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "app.edge_telemetry"
-version = "0.2.0"
+version = "0.4.0"
 
 repositories {
     mavenCentral()
@@ -23,18 +23,20 @@ dependencies {
     implementation("io.ktor:ktor-server-call-logging:2.3.7")
     implementation("io.ktor:ktor-server-status-pages:2.3.7")
 
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-cio:2.3.7")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-client-logging:2.3.7")
+
     implementation("io.grpc:grpc-netty-shaded:1.68.1")
     implementation("io.grpc:grpc-kotlin-stub:1.4.1")
     implementation("io.grpc:grpc-protobuf:1.68.1")
-
     implementation("com.google.protobuf:protobuf-kotlin:4.29.0")
 
     implementation("org.jetbrains.exposed:exposed-core:0.54.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.54.0")
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime:0.54.0")
-
     implementation("org.postgresql:postgresql:42.7.3")
-
     implementation("com.zaxxer:HikariCP:5.1.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
