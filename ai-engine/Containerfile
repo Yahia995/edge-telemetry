@@ -1,0 +1,43 @@
+# =============================================================================
+# Edge Telemetry AI Engine — Containerfile
+#
+# Why python:3.12-slim and not 3.14:
+#   Python 3.14 is the developer's local version but there is no stable
+#   official Docker image for it yet. python:3.12-slim is the current LTS
+#   release, fully compatible with the code (no 3.14-specific features are
+#   used), and receives regular security patches from the Docker Official
+#   Images team.
+#
+# Build:
+#   podman build -t edge-ai:latest .
+#
+# Run (standalone):
+#   podman run --rm -p 8000:8000 edge-ai:latest
+# =============================================================================
+
+FROM python:3.12-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -r -s /bin/false aiengine
+USER aiengine
+
+WORKDIR /app
+
+COPY --chown=aiengine:aiengine requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY --chown=aiengine:aiengine models.py analyzer.py main.py ./
+
+EXPOSE 8000
+
+HEALTHCHECK \
+  --interval=10s \
+  --timeout=5s \
+  --retries=5 \
+  --start-period=15s \
+  CMD curl -sf http://localhost:8000/health || exit 1
+
+CMD ["python", "main.py"]

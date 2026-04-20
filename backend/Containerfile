@@ -1,0 +1,63 @@
+# =============================================================================
+# Edge Telemetry Backend — Containerfile
+# Multi-stage build: Gradle build → minimal JRE Alpine runtime
+#
+# Stage 1 (builder): builds the application distribution (bin/ + lib/)
+# Stage 2 (runtime): JRE-only Alpine, no JDK, no build tools
+#
+# Why installDist instead of shadowJar:
+#   The Gradle application plugin's installDist task produces a directory
+#   with a generated startup script (bin/edge-telemetry-backend) and all
+#   dependency JARs in lib/. This requires zero extra plugins and preserves
+#   the standard Gradle project structure. shadowJar would need an additional
+#   plugin dependency and produces a single fat JAR — not wrong, but
+#   unnecessary complexity for Phase 5.
+#
+# Why eclipse-temurin over openjdk:
+#   eclipse-temurin is the Adoptium distribution — well-maintained, regularly
+#   patched, available for Alpine (musl libc). The -jre-alpine variant is
+#   ~70 MB vs ~200 MB for the full JDK image.
+#
+# Build:
+#   podman build -t edge-backend:latest .
+#
+# Run (standalone, no DB):
+#   podman run --rm -p 8080:8080 -p 50051:50051 edge-backend:latest
+# =============================================================================
+
+FROM gradle:8.12-jdk21 AS builder
+
+WORKDIR /build
+
+COPY build.gradle.kts settings.gradle.kts gradle.properties ./
+COPY gradle/ gradle/
+
+RUN gradle dependencies --no-daemon --quiet || true
+
+COPY src/ src/
+RUN gradle installDist -x test --no-daemon
+
+FROM eclipse-temurin:21-jre-alpine
+
+RUN apk add --no-cache wget tzdata
+
+RUN addgroup -S backend && adduser -S backend -G backend
+USER backend
+
+WORKDIR /app
+
+COPY --from=builder \
+     /build/build/install/edge-telemetry-backend/ \
+     ./
+
+EXPOSE 8080
+EXPOSE 50051
+
+HEALTHCHECK \
+  --interval=10s \
+  --timeout=5s \
+  --retries=5 \
+  --start-period=30s \
+  CMD wget -q --spider http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["bin/edge-telemetry-backend"]
