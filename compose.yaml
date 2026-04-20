@@ -1,27 +1,26 @@
 # =============================================================================
-# Edge Telemetry — Full Stack Compose
-# Phase 5: Multi-node simulation
+# Edge Telemetry — Full Stack Compose (Phase 6)
 #
-# Services:
-#   postgres     PostgreSQL 16 — persistent metric storage
-#   backend      Ktor REST + gRPC coordination server
-#   ai-engine    FastAPI Z-score anomaly detection
-#   agent-dev1   Edge agent instance 1 (device_id=dev1)
-#   agent-dev2   Edge agent instance 2 (device_id=dev2)
-#   agent-dev3   Edge agent instance 3 (device_id=dev3)
+# Changes from Phase 5:
+#   - agent-dev1: ENABLE_EBPF=true, capabilities added (CAP_BPF, etc.)
+#   - agent-dev2, agent-dev3: ENABLE_EBPF=false (control group for comparison)
 #
-# All services share the private bridge network `telemetry-net`.
-# No service is reachable from outside the host except via the declared
-# ports — postgres is intentionally NOT exposed externally here.
+# This configuration lets you compare dev1 (with TCP events) against
+# dev2/dev3 (without) in the same dashboard run. The backend handles both
+# transparently since TcpMetric is just another oneof payload variant.
 #
-# Usage:
-#   podman-compose up -d               start everything
-#   podman-compose up -d --scale ...   (not used — agents are explicit)
-#   podman-compose logs -f backend     follow backend logs
-#   podman-compose down                stop and remove containers
-#   podman-compose down -v             also remove postgres data volume
+# Capability notes:
+#   CAP_BPF:       load BPF programs, create BPF maps (Linux 5.8+)
+#   CAP_PERFMON:   attach to kernel tracepoints
+#   CAP_NET_ADMIN: required by some BPF socket/tc programs
+#   CAP_SYS_PTRACE:read /proc/<pid>/comm (process names in TCP events)
 #
-# For backend-only dev (no containers except DB), use backend/compose.yaml.
+# For production, grant only the capabilities actually needed by your
+# kernel version and BPF program type. On kernels < 5.8, CAP_SYS_ADMIN
+# covers CAP_BPF functionality but is broader — avoid in production.
+#
+# apparmor:unconfined is required on Ubuntu hosts with AppArmor enabled.
+# Fedora uses SELinux; no apparmor: line is needed there.
 # =============================================================================
 
 networks:
@@ -65,15 +64,15 @@ services:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:50051:50051"
     environment:
-      DATABASE_URL:      jdbc:postgresql://postgres:5432/telemetry
-      DATABASE_USER:     telemetry
-      DATABASE_PASSWORD: telemetry
-      DATABASE_POOL_SIZE: "10"
-      AI_ENGINE_URL:     http://ai-engine:8000
+      DATABASE_URL:             jdbc:postgresql://postgres:5432/telemetry
+      DATABASE_USER:            telemetry
+      DATABASE_PASSWORD:        telemetry
+      DATABASE_POOL_SIZE:       "10"
+      AI_ENGINE_URL:            http://ai-engine:8000
       ANOMALY_INTERVAL_SECONDS: "30"
       ANOMALY_WINDOW_MINUTES:   "60"
-      HTTP_PORT:  "8080"
-      GRPC_PORT:  "50051"
+      HTTP_PORT:                "8080"
+      GRPC_PORT:                "50051"
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +110,13 @@ services:
       DEVICE_ID:         dev1
       BACKEND_ADDR:      backend:50051
       SAMPLING_INTERVAL: 5s
+      ENABLE_EBPF:       "true"
+      BPF_OBJECT_PATH:   /home/agent/ebpf/tcp_events.o
+    cap_add:
+      - BPF
+      - PERFMON
+      - NET_ADMIN
+      - SYS_PTRACE
     depends_on:
       backend:
         condition: service_healthy
@@ -127,6 +133,7 @@ services:
       DEVICE_ID:         dev2
       BACKEND_ADDR:      backend:50051
       SAMPLING_INTERVAL: 5s
+      ENABLE_EBPF:       "false"
     depends_on:
       backend:
         condition: service_healthy
@@ -143,6 +150,7 @@ services:
       DEVICE_ID:         dev3
       BACKEND_ADDR:      backend:50051
       SAMPLING_INTERVAL: 5s
+      ENABLE_EBPF:       "false"
     depends_on:
       backend:
         condition: service_healthy

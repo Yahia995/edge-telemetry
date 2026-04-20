@@ -1,33 +1,35 @@
 # =============================================================================
-# Edge Telemetry Agent — Containerfile
-# Multi-stage build: Go build → minimal Alpine runtime
+# Edge Telemetry Agent — Containerfile (Phase 6)
+# Multi-stage: clang BPF compile → Go CGo build → Alpine runtime
 #
-# Stage 1 (builder): compiles the static binary
-# Stage 2 (runtime): scratch-like Alpine image, ~10 MB total
+# Stage 1 (builder): compiles BPF object AND the CGo Go binary
+# Stage 2 (runtime): Alpine with libbpf runtime library
 #
-# Build:
-#   podman build -t edge-agent:latest .
+# Capabilities required at runtime (set in compose.yaml):
+#   CAP_BPF      — load BPF programs and create maps (Linux 5.8+)
+#   CAP_PERFMON  — attach to tracepoints
+#   CAP_NET_ADMIN — required by some BPF socket operations
+#   CAP_SYS_PTRACE — read /proc/<pid>/comm for process names
 #
-# Run (standalone):
-#   podman run --rm \
-#     -e DEVICE_ID=dev1 \
-#     -e BACKEND_ADDR=host.containers.internal:50051 \
-#     edge-agent:latest
+# Without these capabilities (or with ENABLE_EBPF=false), the agent
+# starts normally and runs the /proc collectors without eBPF.
 #
-# Note on /proc in containers:
-#   The agent reads /proc/stat, /proc/meminfo, /proc/net/dev.
-#   In a container, /proc is the container's own proc namespace — it reports
-#   CPU/memory usage for the container's cgroup, not the host. This is the
-#   correct behaviour for containerised edge agents: each container instance
-#   represents an independent "device" with its own resource view.
-#
-#   To report host-level metrics instead (e.g. for a monitoring sidecar):
-#     podman run --pid=host -v /proc:/proc:ro edge-agent:latest
+# Note on /proc:
+#   /proc inside a container is the container's own cgroup namespace.
+#   This is correct: each agent container represents one "edge device"
+#   with its own resource view.
 # =============================================================================
 
 FROM golang:1.21-alpine AS builder
 
-RUN apk add --no-cache git
+RUN apk add --no-cache \
+      clang \
+      libbpf-dev \
+      linux-headers \
+      elfutils-dev \
+      zlib-dev \
+      make \
+      git
 
 WORKDIR /build
 
@@ -35,25 +37,30 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build \
-      -trimpath \
-      -ldflags="-s -w" \
-      -o /agent \
-      cmd/agent/main.go
+
+RUN CGO_ENABLED=1 GOOS=linux make all
 
 FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache \
+      ca-certificates \
+      tzdata \
+      libbpf
 
 RUN addgroup -S agent && adduser -S agent -G agent
 USER agent
 
 WORKDIR /home/agent
 
-COPY --from=builder /agent ./agent
+COPY --from=builder /build/bin/agent ./agent
+
+RUN mkdir -p ./ebpf
+COPY --from=builder /build/ebpf/tcp_events.o ./ebpf/tcp_events.o
 
 ENV DEVICE_ID=unknown
 ENV BACKEND_ADDR=localhost:50051
 ENV SAMPLING_INTERVAL=5s
+ENV ENABLE_EBPF=false
+ENV BPF_OBJECT_PATH=/home/agent/ebpf/tcp_events.o
 
 ENTRYPOINT ["./agent"]
