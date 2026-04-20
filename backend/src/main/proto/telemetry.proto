@@ -2,12 +2,6 @@ syntax = "proto3";
 
 package telemetry.v1;
 
-// Both the Go agent and the Kotlin backend compile from this same logical schema.
-// The agent's copy lives at agent/proto/telemetry.proto.
-// In a larger project you would extract this to a shared `proto/` directory
-// at the repo root and have both build systems reference it.
-// For now, keeping a copy here is simpler and the field numbers guarantee
-// wire compatibility as long as they never change.
 option java_package = "app.edge_telemetry.grpc.proto";
 option java_outer_classname = "TelemetryProto";
 option java_multiple_files = true;
@@ -20,9 +14,10 @@ message Metric {
   MetricStatus status = 3;
 
   oneof payload {
-    CpuMetric cpu = 10;
-    MemoryMetric memory = 11;
+    CpuMetric     cpu     = 10;
+    MemoryMetric  memory  = 11;
     NetworkMetric network = 12;
+    TcpMetric     tcp     = 13;  // Phase 6: eBPF TCP tracepoint events
   }
 }
 
@@ -36,7 +31,7 @@ enum MetricStatus {
 // === Metric types ===
 
 message CpuMetric {
-  float usage_percent = 1;       // 0.0 - 100.0
+  float usage_percent = 1;
   float load_avg_1m = 2;
   float load_avg_5m = 3;
   float load_avg_15m = 4;
@@ -62,11 +57,20 @@ message NetworkMetric {
   uint64 tx_dropped = 13;
 }
 
+message TcpMetric {
+  uint32 pid       = 1;
+  string src_addr  = 2;
+  string dst_addr  = 3;
+  uint32 src_port  = 4;
+  uint32 dst_port  = 5;
+  string old_state = 6;
+  string new_state = 7;
+  string comm      = 8;
+}
+
 // === Service ===
 
 service TelemetryService {
-  // Client-streaming RPC: agent sends a continuous stream of Metric messages,
-  // server acknowledges with a single Ack when the stream closes.
   rpc StreamMetrics(stream Metric) returns (Ack);
 }
 

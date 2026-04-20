@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"runtime"
 	"time"
 
 	pb "github.com/Yahia995/edge-telemetry/agent/proto/telemetry"
@@ -22,17 +23,30 @@ type Collector struct {
 	cpuCollector *CpuCollector
 	memCollector *MemoryCollector
 	netCollector *NetworkCollector
+	tcpCollector *TcpCollector
 	metricChan   chan *pb.Metric
 }
 
 func NewCollector(cfg *config.Config) (*Collector, error) {
-	return &Collector{
+	c := &Collector{
 		cfg:          cfg,
 		cpuCollector: NewCpuCollector(),
 		memCollector: NewMemoryCollector(),
 		netCollector: NewNetworkCollector(),
 		metricChan:   make(chan *pb.Metric, 100),
-	}, nil
+	}
+
+	if cfg.EnableEBPF && runtime.GOOS == "linux" {
+		tc, err := NewTcpCollector(cfg.BpfObjectPath)
+		if err != nil {
+			log.Warnf("eBPF TCP collector unavailable (continuing without it): %v", err)
+		} else {
+			c.tcpCollector = tc
+			log.Infof("eBPF TCP collector enabled (bpf_object=%s)", cfg.BpfObjectPath)
+		}
+	}
+
+	return c, nil
 }
 
 func (c *Collector) Start(ctx context.Context) {
@@ -40,6 +54,10 @@ func (c *Collector) Start(ctx context.Context) {
 	defer ticker.Stop()
 
 	go c.grpcSender(ctx)
+
+	if c.tcpCollector != nil {
+		go c.tcpCollector.Run(ctx, c.cfg.DeviceID, c.metricChan)
+	}
 
 	log.Infof("Starting metric collection (interval: %v, backend: %s)",
 		c.cfg.SamplingInterval, c.cfg.BackendAddr)
@@ -59,7 +77,6 @@ func (c *Collector) Start(ctx context.Context) {
 func (c *Collector) collectAll() {
 	timestamp := time.Now().UnixMilli()
 
-	// CPU
 	cpuMetric, cpuStatus, err := c.cpuCollector.Collect()
 	if err != nil {
 		log.Warnf("CPU collection error: %v", err)
@@ -71,7 +88,6 @@ func (c *Collector) collectAll() {
 		Payload:   &pb.Metric_Cpu{Cpu: cpuMetric},
 	})
 
-	// Memory
 	memMetric, memStatus, err := c.memCollector.Collect()
 	if err != nil {
 		log.Warnf("Memory collection error: %v", err)
@@ -83,7 +99,6 @@ func (c *Collector) collectAll() {
 		Payload:   &pb.Metric_Memory{Memory: memMetric},
 	})
 
-	// Network (one message per interface)
 	netMetrics, netStatus, err := c.netCollector.Collect()
 	if err != nil {
 		log.Warnf("Network collection error: %v", err)
@@ -106,7 +121,6 @@ func (c *Collector) send(metric *pb.Metric) {
 	}
 }
 
-// === gRPC transport ===
 func (c *Collector) grpcSender(ctx context.Context) {
 	backoff := initialBackoff
 

@@ -78,6 +78,20 @@ class TelemetryGrpcService(
                                 txDropped     = metric.network.txDropped.toLong()
                             )
                         )
+
+                        metric.hasTcp() -> {
+                            val tcp = metric.tcp
+                            log.debug(
+                                "TCP  device={}  pid={}  {}:{} → {}:{}  " +
+                                "{} → {}  comm={}",
+                                metric.deviceId,
+                                tcp.pid,
+                                tcp.srcAddr, tcp.srcPort,
+                                tcp.dstAddr, tcp.dstPort,
+                                tcp.oldState, tcp.newState,
+                                tcp.comm
+                            )
+                        }
                     }
 
                     received++

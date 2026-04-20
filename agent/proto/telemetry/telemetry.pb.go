@@ -83,6 +83,7 @@ type Metric struct {
 	//	*Metric_Cpu
 	//	*Metric_Memory
 	//	*Metric_Network
+	//	*Metric_Tcp
 	Payload       isMetric_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -173,6 +174,15 @@ func (x *Metric) GetNetwork() *NetworkMetric {
 	return nil
 }
 
+func (x *Metric) GetTcp() *TcpMetric {
+	if x != nil {
+		if x, ok := x.Payload.(*Metric_Tcp); ok {
+			return x.Tcp
+		}
+	}
+	return nil
+}
+
 type isMetric_Payload interface {
 	isMetric_Payload()
 }
@@ -189,11 +199,17 @@ type Metric_Network struct {
 	Network *NetworkMetric `protobuf:"bytes,12,opt,name=network,proto3,oneof"`
 }
 
+type Metric_Tcp struct {
+	Tcp *TcpMetric `protobuf:"bytes,13,opt,name=tcp,proto3,oneof"` // Phase 6: eBPF TCP tracepoint events
+}
+
 func (*Metric_Cpu) isMetric_Payload() {}
 
 func (*Metric_Memory) isMetric_Payload() {}
 
 func (*Metric_Network) isMetric_Payload() {}
+
+func (*Metric_Tcp) isMetric_Payload() {}
 
 type CpuMetric struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -447,6 +463,106 @@ func (x *NetworkMetric) GetTxDropped() uint64 {
 	return 0
 }
 
+type TcpMetric struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pid           uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	SrcAddr       string                 `protobuf:"bytes,2,opt,name=src_addr,json=srcAddr,proto3" json:"src_addr,omitempty"`
+	DstAddr       string                 `protobuf:"bytes,3,opt,name=dst_addr,json=dstAddr,proto3" json:"dst_addr,omitempty"`
+	SrcPort       uint32                 `protobuf:"varint,4,opt,name=src_port,json=srcPort,proto3" json:"src_port,omitempty"`
+	DstPort       uint32                 `protobuf:"varint,5,opt,name=dst_port,json=dstPort,proto3" json:"dst_port,omitempty"`
+	OldState      string                 `protobuf:"bytes,6,opt,name=old_state,json=oldState,proto3" json:"old_state,omitempty"`
+	NewState      string                 `protobuf:"bytes,7,opt,name=new_state,json=newState,proto3" json:"new_state,omitempty"`
+	Comm          string                 `protobuf:"bytes,8,opt,name=comm,proto3" json:"comm,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TcpMetric) Reset() {
+	*x = TcpMetric{}
+	mi := &file_telemetry_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TcpMetric) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TcpMetric) ProtoMessage() {}
+
+func (x *TcpMetric) ProtoReflect() protoreflect.Message {
+	mi := &file_telemetry_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TcpMetric.ProtoReflect.Descriptor instead.
+func (*TcpMetric) Descriptor() ([]byte, []int) {
+	return file_telemetry_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *TcpMetric) GetPid() uint32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *TcpMetric) GetSrcAddr() string {
+	if x != nil {
+		return x.SrcAddr
+	}
+	return ""
+}
+
+func (x *TcpMetric) GetDstAddr() string {
+	if x != nil {
+		return x.DstAddr
+	}
+	return ""
+}
+
+func (x *TcpMetric) GetSrcPort() uint32 {
+	if x != nil {
+		return x.SrcPort
+	}
+	return 0
+}
+
+func (x *TcpMetric) GetDstPort() uint32 {
+	if x != nil {
+		return x.DstPort
+	}
+	return 0
+}
+
+func (x *TcpMetric) GetOldState() string {
+	if x != nil {
+		return x.OldState
+	}
+	return ""
+}
+
+func (x *TcpMetric) GetNewState() string {
+	if x != nil {
+		return x.NewState
+	}
+	return ""
+}
+
+func (x *TcpMetric) GetComm() string {
+	if x != nil {
+		return x.Comm
+	}
+	return ""
+}
+
 type Ack struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Success         bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -458,7 +574,7 @@ type Ack struct {
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_telemetry_proto_msgTypes[4]
+	mi := &file_telemetry_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -470,7 +586,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_telemetry_proto_msgTypes[4]
+	mi := &file_telemetry_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -483,7 +599,7 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_telemetry_proto_rawDescGZIP(), []int{4}
+	return file_telemetry_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Ack) GetSuccess() bool {
@@ -511,7 +627,7 @@ var File_telemetry_proto protoreflect.FileDescriptor
 
 const file_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftelemetry.proto\x12\ftelemetry.v1\"\x9e\x02\n" +
+	"\x0ftelemetry.proto\x12\ftelemetry.v1\"\xcb\x02\n" +
 	"\x06Metric\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\x122\n" +
@@ -519,7 +635,8 @@ const file_telemetry_proto_rawDesc = "" +
 	"\x03cpu\x18\n" +
 	" \x01(\v2\x17.telemetry.v1.CpuMetricH\x00R\x03cpu\x124\n" +
 	"\x06memory\x18\v \x01(\v2\x1a.telemetry.v1.MemoryMetricH\x00R\x06memory\x127\n" +
-	"\anetwork\x18\f \x01(\v2\x1b.telemetry.v1.NetworkMetricH\x00R\anetworkB\t\n" +
+	"\anetwork\x18\f \x01(\v2\x1b.telemetry.v1.NetworkMetricH\x00R\anetwork\x12+\n" +
+	"\x03tcp\x18\r \x01(\v2\x17.telemetry.v1.TcpMetricH\x00R\x03tcpB\t\n" +
 	"\apayload\"\x92\x01\n" +
 	"\tCpuMetric\x12#\n" +
 	"\rusage_percent\x18\x01 \x01(\x02R\fusagePercent\x12\x1e\n" +
@@ -547,7 +664,16 @@ const file_telemetry_proto_rawDesc = "" +
 	"\n" +
 	"rx_dropped\x18\f \x01(\x04R\trxDropped\x12\x1d\n" +
 	"\n" +
-	"tx_dropped\x18\r \x01(\x04R\ttxDropped\"d\n" +
+	"tx_dropped\x18\r \x01(\x04R\ttxDropped\"\xd7\x01\n" +
+	"\tTcpMetric\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x19\n" +
+	"\bsrc_addr\x18\x02 \x01(\tR\asrcAddr\x12\x19\n" +
+	"\bdst_addr\x18\x03 \x01(\tR\adstAddr\x12\x19\n" +
+	"\bsrc_port\x18\x04 \x01(\rR\asrcPort\x12\x19\n" +
+	"\bdst_port\x18\x05 \x01(\rR\adstPort\x12\x1b\n" +
+	"\told_state\x18\x06 \x01(\tR\boldState\x12\x1b\n" +
+	"\tnew_state\x18\a \x01(\tR\bnewState\x12\x12\n" +
+	"\x04comm\x18\b \x01(\tR\x04comm\"d\n" +
 	"\x03Ack\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12)\n" +
@@ -573,27 +699,29 @@ func file_telemetry_proto_rawDescGZIP() []byte {
 }
 
 var file_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_telemetry_proto_goTypes = []any{
 	(MetricStatus)(0),     // 0: telemetry.v1.MetricStatus
 	(*Metric)(nil),        // 1: telemetry.v1.Metric
 	(*CpuMetric)(nil),     // 2: telemetry.v1.CpuMetric
 	(*MemoryMetric)(nil),  // 3: telemetry.v1.MemoryMetric
 	(*NetworkMetric)(nil), // 4: telemetry.v1.NetworkMetric
-	(*Ack)(nil),           // 5: telemetry.v1.Ack
+	(*TcpMetric)(nil),     // 5: telemetry.v1.TcpMetric
+	(*Ack)(nil),           // 6: telemetry.v1.Ack
 }
 var file_telemetry_proto_depIdxs = []int32{
 	0, // 0: telemetry.v1.Metric.status:type_name -> telemetry.v1.MetricStatus
 	2, // 1: telemetry.v1.Metric.cpu:type_name -> telemetry.v1.CpuMetric
 	3, // 2: telemetry.v1.Metric.memory:type_name -> telemetry.v1.MemoryMetric
 	4, // 3: telemetry.v1.Metric.network:type_name -> telemetry.v1.NetworkMetric
-	1, // 4: telemetry.v1.TelemetryService.StreamMetrics:input_type -> telemetry.v1.Metric
-	5, // 5: telemetry.v1.TelemetryService.StreamMetrics:output_type -> telemetry.v1.Ack
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	5, // 4: telemetry.v1.Metric.tcp:type_name -> telemetry.v1.TcpMetric
+	1, // 5: telemetry.v1.TelemetryService.StreamMetrics:input_type -> telemetry.v1.Metric
+	6, // 6: telemetry.v1.TelemetryService.StreamMetrics:output_type -> telemetry.v1.Ack
+	6, // [6:7] is the sub-list for method output_type
+	5, // [5:6] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_telemetry_proto_init() }
@@ -605,6 +733,7 @@ func file_telemetry_proto_init() {
 		(*Metric_Cpu)(nil),
 		(*Metric_Memory)(nil),
 		(*Metric_Network)(nil),
+		(*Metric_Tcp)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -612,7 +741,7 @@ func file_telemetry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_telemetry_proto_rawDesc), len(file_telemetry_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

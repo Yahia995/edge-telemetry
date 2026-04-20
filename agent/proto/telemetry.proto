@@ -10,11 +10,12 @@ message Metric {
   string device_id = 1;
   int64 timestamp = 2;           // Unix epoch milliseconds (UTC)
   MetricStatus status = 3;
-  
+
   oneof payload {
-    CpuMetric cpu = 10;
-    MemoryMetric memory = 11;
+    CpuMetric     cpu     = 10;
+    MemoryMetric  memory  = 11;
     NetworkMetric network = 12;
+    TcpMetric     tcp     = 13;  // Phase 6: eBPF TCP tracepoint events
   }
 }
 
@@ -52,6 +53,17 @@ message NetworkMetric {
   uint64 tx_errors = 11;
   uint64 rx_dropped = 12;
   uint64 tx_dropped = 13;
+}
+
+message TcpMetric {
+  uint32 pid       = 1;
+  string src_addr  = 2;
+  string dst_addr  = 3;
+  uint32 src_port  = 4;
+  uint32 dst_port  = 5;
+  string old_state = 6;
+  string new_state = 7;
+  string comm      = 8;
 }
 
 // === Service ===
